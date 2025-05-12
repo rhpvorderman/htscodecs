@@ -773,18 +773,49 @@ static int encode_name(name_context *ctx, char *name, int len, int mode) {
         /* Determine segment length and data type */ 
         int s = i; 
         int token_is_number = 1;
+        int alnum_switches = 0;
+        int in_a_digit = isdigit(first_char);
         while (s < len) {
             uint8_t c = (uint8_t)name[s];
             if (!isalnum(c)) {
                 break;
             }
-            if (!isdigit(c)) {
+            int c_is_digit = isdigit(c);
+            if (in_a_digit && !c_is_digit) {
+                in_a_digit = 0;
+                alnum_switches += 1;
+            } else if (!in_a_digit && c_is_digit) {
+                in_a_digit = 1; 
+                alnum_switches += 1;
+            }
+            if (!c_is_digit) {
                 token_is_number = 0;
             }
             s++;
         }
+
         char *token = name + i;
         int token_length = s - i; 
+        if (alnum_switches == 1) {
+            if (isalpha(first_char)) {
+                int j = 0;
+                for (; j < token_length; j++) {
+                    if (isdigit(token[j])) {
+                        break;
+                    }
+                }
+                token_length = j;
+            } else {
+                int j = 0;
+                for (; j < token_length; j++) {
+                    if (isalpha(token[j])) {
+                        break;
+                    }
+                }
+                token_length = j;
+            }
+        }
+
         int token_starts_with_zero = first_char == '0';
         uint32_t v = 0;
         if (token_is_number) {
