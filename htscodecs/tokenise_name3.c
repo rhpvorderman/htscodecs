@@ -682,6 +682,167 @@ int search_trie(name_context *ctx, char *data, size_t len, int n, int *exact, in
 }
 
 
+enum char_types {
+    DIGIT = 0,          // 0b0000 0000
+    HEXDIGIT_LOWER = 1, // 0b0000 0001
+    HEXDIGIT_UPPER = 2, // 0b0000 0010
+    STRING = 3,         // 0b0000 0011
+    SEPARATION = 7,     // 0b0000 0111
+};
+
+#define D DIGIT
+#define L HEXDIGIT_LOWER
+#define U HEXDIGIT_UPPER
+#define S STRING 
+#define P SEPARATION
+
+static uint8_t CHAR_TO_TYPE[256] = {
+// Control characters
+    P, P, P, P, P, P, P, P, P, P, P, P, P, P, P, P,
+    P, P, P, P, P, P, P, P, P, P, P, P, P, P, P, P,
+// Interpunction and space
+    P, P, P, P, P, P, P, P, P, P, P, P, P, P, P, P,
+//  0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+    D, D, D, D, D, D, D, D, D, D, P, P, P, P, P, P,
+//     A, B, C, D, E, F, G, H, I, J, K, L, M, N, O,
+    P, U, U, U, U, U, U, S, S, S, S, S, S, S, S, S,
+//  P, Q, R, S, T, U, V, W, X, Y, Z,  
+    S, S, S, S, S, S, S, S, S, S, S, P, P, P, P, P,
+//     a, b, c, d, e, f, g, h, i, j, k, l, m, n, o,
+    P, L, L, L, L, L, L, S, S, S, S, S, S, S, S, S,
+//  p, q, r, s, t, u, v, w, x, y, z, 
+    S, S, S, S, S, S, S, S, S, S, S, P, P, P, P, P,
+// Only ASCII will be encoded well
+    P, P, P, P, P, P, P, P, P, P, P, P, P, P, P, P,
+    P, P, P, P, P, P, P, P, P, P, P, P, P, P, P, P,
+    P, P, P, P, P, P, P, P, P, P, P, P, P, P, P, P,
+    P, P, P, P, P, P, P, P, P, P, P, P, P, P, P, P,
+    P, P, P, P, P, P, P, P, P, P, P, P, P, P, P, P,
+    P, P, P, P, P, P, P, P, P, P, P, P, P, P, P, P,
+    P, P, P, P, P, P, P, P, P, P, P, P, P, P, P, P,
+    P, P, P, P, P, P, P, P, P, P, P, P, P, P, P, P,
+};
+
+struct EncodingAndLength {
+    uint8_t type;
+    uint8_t length;
+};
+
+static int name_to_types(char *name, size_t name_length, struct EncodingAndLength *result_store) {
+    /* Classify all characters and group based on the separation characters. 
+       Theoretically, optimal grouping could be done but this algorithm is going
+       to be *difficult*. So instead:
+       - Group based on interpunction characters.
+       - Check if there are groups that are prefix<number> or <number>suffix. 
+         Split these in number and string tokens.
+       - Combine consecutive string tokens into a single string token. 
+    */
+    if (name_length > 256) {
+        return -1;
+    }
+    uint8_t typed_chars[256];
+    struct EncodingAndLength tokens[MAX_TOKENS];
+    struct EncodingAndLength expanded_tokens[MAX_TOKENS];
+    uint8_t current_type = DIGIT;
+    size_t last_segment_start = 0;
+    size_t store_index = 0;
+
+
+    for (size_t i=0; i < name_length; i++) {
+        if (store_index + 2 == MAX_TOKENS) {
+            return -1;
+        }
+        uint8_t char_type = CHAR_TO_TYPE[(uint8_t)name[i]];
+        typed_chars[i] = char_type;
+        current_type |= char_type;
+        if (char_type == SEPARATION) {
+
+            tokens[store_index].type = current_type;
+            tokens[store_index].length = i - last_segment_start;
+            tokens[store_index + 1].length = 1;
+            tokens[store_index + 1].type = STRING;
+            last_segment_start = i + 1;
+            current_type = DIGIT;
+            store_index += 2;
+        }
+    }
+    if (name_length - last_segment_start > 0) {
+        tokens[store_index].type = current_type;
+        tokens[store_index].length = name_length - last_segment_start;
+        store_index += 1;
+    }
+
+
+    size_t number_of_tokens = store_index;
+
+    /* Run a check to see if some strings are actually prefix<number> or 
+       <number>suffix*/
+    size_t name_index = 0;
+    size_t expanded_tokens_index = 0;
+    for (size_t token_index=0; token_index < number_of_tokens; token_index++) {
+        if (expanded_tokens_index + 1 == MAX_TOKENS) {
+            return -1;
+        }
+        struct EncodingAndLength token = tokens[token_index];
+        if (token.type == HEXDIGIT_LOWER || token.type == HEXDIGIT_UPPER) {
+            if (token.length > 16) {  // It's a string!
+                token.type == STRING;
+            }
+        }
+        if (token.type != STRING || token.length == 1) {
+            expanded_tokens[expanded_tokens_index] = token;
+            expanded_tokens_index += 1;
+            name_index += token.length;
+            continue;
+        }
+        size_t token_end = name_index + token.length;
+        size_t digit_start = name_index;
+        
+        while (digit_start < token_end) {
+            if (typed_chars[digit_start] == DIGIT) {
+                break;
+            }
+            digit_start += 1;
+        }
+        size_t digit_end = digit_start + 1;
+        while (digit_end < token_end) {
+            if (typed_chars[digit_end] != DIGIT) {
+                break;
+            }
+        }
+        if (digit_start == name_index) {
+            expanded_tokens[expanded_tokens_index].type = DIGIT;
+            expanded_tokens[expanded_tokens_index].length = digit_end - digit_start;
+            expanded_tokens[expanded_tokens_index + 1].type = STRING; 
+            expanded_tokens[expanded_tokens_index + 1].length = token_end - digit_end;
+            name_index += token.length;
+            expanded_tokens_index += 2;
+        }
+        else if (digit_end == token_end) {
+            expanded_tokens[expanded_tokens_index].type = STRING;
+            expanded_tokens[expanded_tokens_index].length = digit_start - name_index;
+            expanded_tokens[expanded_tokens_index + 1].type = DIGIT; 
+            expanded_tokens[expanded_tokens_index + 1].length = token_end - digit_start;
+            name_index += token.length;
+            expanded_tokens_index += 2;
+        } else {
+            // If no number starts at the begining, or ends at the end, it is not
+            // in <number>suffix or prefix<number> style. 
+            expanded_tokens[expanded_tokens_index] = token;
+            expanded_tokens_index += 1;
+            name_index += token.length;
+        }
+    }
+    size_t expanded_tokens_length = expanded_tokens_index;
+    expanded_tokens_index = 0;
+
+    /* We have used interpunction as anchoring. 
+        Now we can optimize by chaining string types together. */
+    
+
+
+}
+
 //-----------------------------------------------------------------------------
 // Name encoder
 
