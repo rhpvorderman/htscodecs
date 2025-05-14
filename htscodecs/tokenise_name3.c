@@ -118,6 +118,56 @@
 // Number of names per block
 #define MAX_NAMES 1000000
 
+enum char_types {
+    DIGIT = 0,
+    STRING = 1,
+    SEPARATION = 2,
+};
+
+#define D DIGIT
+#define S STRING 
+#define P SEPARATION
+
+/* Alternative classification table. 
+Contrary to `ispunct` some characters are classified as the string type: 
+$, !, ? are normal values in Strings and not used to indicate field separators. 
+, + and & are often used for multiple values in the same field and should thus 
+not be separated. */
+static uint8_t CHAR_TO_TYPE[256] = {
+// Control characters
+    P, P, P, P, P, P, P, P, P, P, P, P, P, P, P, P,
+    P, P, P, P, P, P, P, P, P, P, P, P, P, P, P, P,
+//   , !, ", #, $, %, &, ', (, ), *, +, ,, -, ., /
+    P, S, P, P, S, P, S, P, P, P, P, S, P, P, P, P,
+//  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, :, ;, <, =, >, ?
+    D, D, D, D, D, D, D, D, D, D, P, P, P, P, P, S,
+//  @, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O,
+    S, S, S, S, S, S, S, S, S, S, S, S, S, S, S, S,
+//  P, Q, R, S, T, U, V, W, X, Y, Z, [, \, ], ^, _, 
+    S, S, S, S, S, S, S, S, S, S, S, P, P, P, P, P,
+//  `, a, b, c, d, e, f, g, h, i, j, k, l, m, n, o,
+    P, S, S, S, S, S, S, S, S, S, S, S, S, S, S, S,
+//  p, q, r, s, t, u, v, w, x, y, z, {, }, |, ~,
+    S, S, S, S, S, S, S, S, S, S, S, P, P, P, P, P,
+// Assume all non-ASCII characters are strings
+    S, S, S, S, S, S, S, S, S, S, S, S, S, S, S, S,
+    S, S, S, S, S, S, S, S, S, S, S, S, S, S, S, S,
+    S, S, S, S, S, S, S, S, S, S, S, S, S, S, S, S,
+    S, S, S, S, S, S, S, S, S, S, S, S, S, S, S, S,
+    S, S, S, S, S, S, S, S, S, S, S, S, S, S, S, S,
+    S, S, S, S, S, S, S, S, S, S, S, S, S, S, S, S,
+    S, S, S, S, S, S, S, S, S, S, S, S, S, S, S, S,
+    S, S, S, S, S, S, S, S, S, S, S, S, S, S, S, S,
+};
+
+static inline int isalpha_(uint8_t c) {
+    return CHAR_TO_TYPE[c] == STRING;
+}
+
+static inline int ispunct_(uint8_t c) {
+    return CHAR_TO_TYPE[c] == SEPARATION;
+}
+
 enum name_type {N_ERR = -1, N_TYPE = 0, N_ALPHA, N_CHAR, N_DIGITS0, N_DZLEN, N_DUP, N_DIFF, 
                 N_DIGITS, N_DDELTA, N_DDELTA0, N_MATCH, N_NOP, N_END, N_ALL};
 
@@ -765,14 +815,16 @@ static int encode_name(name_context *ctx, char *name, int len, int mode) {
         }
 
         /* Determine data type of this segment */
-        if (isalpha((uint8_t)name[i])) {
+        if (ispunct_((uint8_t)name[i])) {
+            goto n_char;
+        }
+        if (isalpha_((uint8_t)name[i])) {
             int s = i+1;
 //          int S = i+1;
 
 //          // FIXME: try which of these is best.  alnum is good sometimes.
 //          while (s < len && isalpha((uint8_t)name[s]))
-            while (s < len && (isalpha((uint8_t)name[s]) ||
-                               ispunct((uint8_t)name[s])))
+            while (s < len && isalpha_((uint8_t)name[s]))
 //          while (s < len && name[s] != ':')
 //          while (s < len && !isdigit((uint8_t)name[s]) && name[s] != ':')
                 s++;
