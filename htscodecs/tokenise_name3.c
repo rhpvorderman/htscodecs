@@ -830,7 +830,6 @@ static int encode_name(name_context *ctx, char *name, int len, int mode) {
         char *token = name + i;
         int token_length = s - i; 
         int token_starts_with_zero = first_char == '0';
-        int token_is_number = token_type == DIGIT;
         uint32_t v = 0;
         if (token_type == DIGIT) {
             /* Do not encode larger numbers because of uint32_t limits */
@@ -872,7 +871,6 @@ static int encode_name(name_context *ctx, char *name, int len, int mode) {
             }
             if (digit_start == 0 && remainder_all_string) {
                 // <number>suffix
-                token_is_number = 1; 
                 token_length = digit_end - digit_start;
             }
             if (digit_end == token_length && digit_start != token_length) {
@@ -882,7 +880,19 @@ static int encode_name(name_context *ctx, char *name, int len, int mode) {
             }
         }
         
-        if (!token_is_number) {
+        if (token_type == HEXDIGIT_LOWER || token_type == HEXDIGIT_UPPER) {
+
+            for (size_t j = 0; j < token_length; j++, ntok++) {
+                encode_token_char(ctx, ntok, token[j]);
+                ctx->lc[cnum].last[ntok].token_int = token[j];
+                ctx->lc[cnum].last[ntok].token_type = N_CHAR;
+#ifdef ENC_DEBUG
+                fprintf(stderr, "Tok %d (chr, %c / %c)\n", N_CHAR, ctx->lc[pnum].last[ntok].token_int, token[j]);;
+#endif
+            }
+            i = i + token_length - 1;
+        }
+       else if (token_type == STRING) {
 
             // Single byte strings are better encoded as chars.
             if (token_length == 1) goto n_char;
@@ -915,8 +925,8 @@ static int encode_name(name_context *ctx, char *name, int len, int mode) {
             ctx->lc[cnum].last[ntok].token_str = i;
             ctx->lc[cnum].last[ntok].token_type = N_ALPHA;
 
-            i = s-1;
-        } else if (token_starts_with_zero && token_is_number) digits0: {
+            i = i + token_length -1;
+        } else if (token_starts_with_zero && token_type==DIGIT) digits0: {
             // Digits starting with zero; encode length + value
             int d = 0;
             // TODO: optimise choice over whether to switch from DIGITS to DELTA
@@ -958,7 +968,7 @@ static int encode_name(name_context *ctx, char *name, int len, int mode) {
             ctx->lc[cnum].last[ntok].token_type = N_DIGITS0;
 
             i = i + token_length - 1;
-        } else if (token_is_number) {
+        } else if (token_type == DIGIT) {
             // digits starting 1-9; encode value
             int d = 0;
 
