@@ -823,7 +823,7 @@ static int encode_name(name_context *ctx, char *name, int len, int mode) {
             int d = 0;
 
             while (s < len && isdigit((uint8_t)name[s]) && s-i < 9) {
-                v = v*10 + name[s] - '0';
+                v = v*10 + (name[s] & 0xF);  // ASCII designed so last 4 bits correspond with value of digit.
                 //putchar(name[s]);
                 s++;
             }
@@ -874,7 +874,7 @@ static int encode_name(name_context *ctx, char *name, int len, int mode) {
             int d = 0;
 
             while (s < len && isdigit((uint8_t)name[s]) && s-i < 9) {
-                v = v*10 + name[s] - '0';
+                v = v*10 + (name[s] & 0xF);  // ASCII designed so last 4 bits correspond with value of digit.
                 //putchar(name[s]);
                 s++;
             }
