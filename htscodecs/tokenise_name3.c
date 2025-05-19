@@ -231,57 +231,48 @@ static void free_context(name_context *ctx) {
 // Fast unsigned integer printing code.
 // Returns number of bytes written.
 static int append_uint32_fixed(char *cp, uint32_t i, uint8_t l) {
-    switch (l) {
-    case 9:*cp++ = i / 100000000 + '0', i %= 100000000; // fall-through
-    case 8:*cp++ = i / 10000000  + '0', i %= 10000000;  // fall-through
-    case 7:*cp++ = i / 1000000   + '0', i %= 1000000;   // fall-through
-    case 6:*cp++ = i / 100000    + '0', i %= 100000;    // fall-through
-    case 5:*cp++ = i / 10000     + '0', i %= 10000;     // fall-through
-    case 4:*cp++ = i / 1000      + '0', i %= 1000;      // fall-through
-    case 3:*cp++ = i / 100       + '0', i %= 100;       // fall-through
-    case 2:*cp++ = i / 10        + '0', i %= 10;        // fall-through
-    case 1:*cp++ = i             + '0';                 // fall-throuhg
-    case 0:break;
+    char buf[9];
+    if (l > 4) {
+        buf[0] = '0' + ((i % 1000000000)  / 100000000);
+        buf[1] = '0' + ((i % 100000000)   / 10000000);
+        buf[2] = '0' + ((i % 10000000)    / 1000000);
+        buf[3] = '0' + ((i % 1000000)     / 100000);
+        buf[4] = '0' + ((i % 100000)      / 10000);    
     }
+    buf[5] = '0' + ((i % 10000)       / 1000);
+    buf[6] = '0' + ((i % 1000)        / 100);
+    buf[7] = '0' + ((i % 100)         / 10);
+    buf[8] = '0' + ((i % 10)          / 1);
+    size_t offset = 9 - l;
+    memcpy(cp, buf + offset, l);
     return l;
 }
 
 static int append_uint32_var(char *cp, uint32_t i) {
-    char *op = cp;
-    uint32_t j;
+    char buf[9];
+    size_t index = 5;
 
-    //if (i < 10)         goto b0;
-    if (i < 100)        goto b1;
-    //if (i < 1000)       goto b2;
-    if (i < 10000)      goto b3;
-    //if (i < 100000)     goto b4;
-    if (i < 1000000)    goto b5;
-    //if (i < 10000000)   goto b6;
-    if (i < 100000000)  goto b7;
+    if (i > 10000) {
+        index = 0;
+        buf[0] = '0' + ((i % 1000000000)  / 100000000);
+        buf[1] = '0' + ((i % 100000000)   / 10000000);
+        buf[2] = '0' + ((i % 10000000)    / 1000000);
+        buf[3] = '0' + ((i % 1000000)     / 100000);
+        buf[4] = '0' + ((i % 100000)      / 10000);        
+    }
+    buf[5] = '0' + ((i % 10000)       / 1000);
+    buf[6] = '0' + ((i % 1000)        / 100);
+    buf[7] = '0' + ((i % 100)         / 10);
+    buf[8] = '0' + ((i % 10)          / 1);
 
-    if ((j = i / 1000000000)) {*cp++ = j + '0'; i -= j*1000000000; goto x8;}
-    if ((j = i / 100000000))  {*cp++ = j + '0'; i -= j*100000000;  goto x7;}
- b7:if ((j = i / 10000000))   {*cp++ = j + '0'; i -= j*10000000;   goto x6;}
-    if ((j = i / 1000000))    {*cp++ = j + '0', i -= j*1000000;    goto x5;}
- b5:if ((j = i / 100000))     {*cp++ = j + '0', i -= j*100000;     goto x4;}
-    if ((j = i / 10000))      {*cp++ = j + '0', i -= j*10000;      goto x3;}
- b3:if ((j = i / 1000))       {*cp++ = j + '0', i -= j*1000;       goto x2;}
-    if ((j = i / 100))        {*cp++ = j + '0', i -= j*100;        goto x1;}
- b1:if ((j = i / 10))         {*cp++ = j + '0', i -= j*10;         goto x0;}
-    if (i)                     *cp++ = i + '0';
-    return cp-op;
-
- x8:*cp++ = i / 100000000 + '0', i %= 100000000;
- x7:*cp++ = i / 10000000  + '0', i %= 10000000;
- x6:*cp++ = i / 1000000   + '0', i %= 1000000;
- x5:*cp++ = i / 100000    + '0', i %= 100000;
- x4:*cp++ = i / 10000     + '0', i %= 10000;
- x3:*cp++ = i / 1000      + '0', i %= 1000;
- x2:*cp++ = i / 100       + '0', i %= 100;
- x1:*cp++ = i / 10        + '0', i %= 10;
- x0:*cp++ = i             + '0';
-
-    return cp-op;
+    for (;index < 9; index += 1) {
+        if (buf[index] != '0') {
+            break;
+        }
+    }
+    size_t length = 9 - index;
+    memcpy(cp, buf + index, length);
+    return length;
 }
 
 //-----------------------------------------------------------------------------
