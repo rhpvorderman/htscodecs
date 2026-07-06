@@ -474,7 +474,7 @@ static int encode_token_diff(name_context *ctx, uint32_t val) {
 //-----------------------------------------------------------------------------
 // Trie implementation for tracking common name prefixes.
 static
-int build_trie(name_context *ctx, char *data, size_t len, int n) {
+int build_trie(name_context *ctx, const char *data, size_t len, int n) {
     size_t i;
     trie_t *t;
 
@@ -1209,7 +1209,7 @@ static int decode_name(name_context *ctx, char *name, int name_len) {
 
 //-----------------------------------------------------------------------------
 // arith adaptive codec or static rANS 4x16pr codec
-static int arith_encode(uint8_t *in, uint64_t in_len, uint8_t *out, uint64_t *out_len, int method) {
+static int arith_encode(const uint8_t *in, uint64_t in_len, uint8_t *out, uint64_t *out_len, int method) {
     unsigned int olen = *out_len-6, nb;
     if (arith_compress_to(in, in_len, out+6, &olen, method) == NULL)
         return -1;
@@ -1223,7 +1223,7 @@ static int arith_encode(uint8_t *in, uint64_t in_len, uint8_t *out, uint64_t *ou
 
 // Returns number of bytes read from 'in' on success,
 //        -1 on failure.
-static int64_t arith_decode(uint8_t *in, uint64_t in_len, uint8_t *out, uint64_t *out_len) {
+static int64_t arith_decode(const uint8_t *in, uint64_t in_len, uint8_t *out, uint64_t *out_len) {
     unsigned int olen = *out_len;
 
     uint32_t clen;
@@ -1236,7 +1236,7 @@ static int64_t arith_decode(uint8_t *in, uint64_t in_len, uint8_t *out, uint64_t
     return clen+nb;
 }
 
-static int rans_encode(uint8_t *in, uint64_t in_len, uint8_t *out, uint64_t *out_len, int method) {
+static int rans_encode(const uint8_t *in, uint64_t in_len, uint8_t *out, uint64_t *out_len, int method) {
     unsigned int olen = *out_len-6, nb;
     if (rans_compress_to_4x16(in, in_len, out+6, &olen, method) == NULL)
         return -1;
@@ -1250,7 +1250,7 @@ static int rans_encode(uint8_t *in, uint64_t in_len, uint8_t *out, uint64_t *out
 
 // Returns number of bytes read from 'in' on success,
 //        -1 on failure.
-static int64_t rans_decode(uint8_t *in, uint64_t in_len, uint8_t *out, uint64_t *out_len) {
+static int64_t rans_decode(const uint8_t *in, uint64_t in_len, uint8_t *out, uint64_t *out_len) {
     unsigned int olen = *out_len;
 
     uint32_t clen;
@@ -1263,7 +1263,7 @@ static int64_t rans_decode(uint8_t *in, uint64_t in_len, uint8_t *out, uint64_t 
     return clen+nb;
 }
 
-static int compress(uint8_t *in, uint64_t in_len, enum name_type type,
+static int compress(const uint8_t *in, uint64_t in_len, enum name_type type,
                     int level, int use_arith,
                     uint8_t *out, uint64_t *out_len) {
     uint64_t best_sz = UINT64_MAX;
@@ -1414,7 +1414,7 @@ static int compress(uint8_t *in, uint64_t in_len, enum name_type type,
     return ret;
 }
 
-static uint64_t uncompressed_size(uint8_t *in, uint64_t in_len) {
+static uint64_t uncompressed_size(const uint8_t *in, uint64_t in_len) {
     uint32_t clen, ulen;
 
     // in[0] in part of buffer written by us
@@ -1426,7 +1426,7 @@ static uint64_t uncompressed_size(uint8_t *in, uint64_t in_len) {
     return ulen;
 }
 
-static int uncompress(int use_arith, uint8_t *in, uint64_t in_len,
+static int uncompress(int use_arith, const uint8_t *in, uint64_t in_len,
                       uint8_t *out, uint64_t *out_len) {
     uint32_t clen;
     var_get_u32(in, in+in_len, &clen);
@@ -1446,7 +1446,7 @@ static int uncompress(int use_arith, uint8_t *in, uint64_t in_len,
  * Returns a malloced buffer holding compressed data of size *out_len,
  *         or NULL on failure
  */
-uint8_t *tok3_encode_names(char *blk, int len, int level, int use_arith,
+uint8_t *tok3_encode_names(const char *blk, int len, int level, int use_arith,
                            int *out_len, int *last_start_p) {
     int last_start = 0, i, j, nreads;
 
@@ -1662,7 +1662,7 @@ uint8_t *tok3_encode_names(char *blk, int len, int level, int use_arith,
 }
 
 // Deprecated interface; to remove when we next to an ABI breakage
-uint8_t *encode_names(char *blk, int len, int level, int use_arith,
+uint8_t *encode_names(const char *blk, int len, int level, int use_arith,
                       int *out_len, int *last_start_p) {
     return tok3_encode_names(blk, len, level, use_arith, out_len,
                              last_start_p);
@@ -1674,7 +1674,7 @@ uint8_t *encode_names(char *blk, int len, int level, int use_arith,
  *
  * Returns NULL on failure.
  */
-uint8_t *tok3_decode_names(uint8_t *in, uint32_t sz, uint32_t *out_len) {
+uint8_t *tok3_decode_names(const uint8_t *in, uint32_t sz, uint32_t *out_len) {
     if (sz < 9)
         return NULL;
 
@@ -1832,6 +1832,6 @@ uint8_t *tok3_decode_names(uint8_t *in, uint32_t sz, uint32_t *out_len) {
 }
 
 // Deprecated interface; to remove when we next to an ABI breakage
-uint8_t *decode_names(uint8_t *in, uint32_t sz, uint32_t *out_len) {
+uint8_t *decode_names(const uint8_t *in, uint32_t sz, uint32_t *out_len) {
     return tok3_decode_names(in, sz, out_len);
 }

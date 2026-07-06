@@ -74,7 +74,7 @@ static uint8x8_t vtab[16] = {
 };
 #undef _
 
-unsigned char *rans_compress_O0_32x16_neon(unsigned char *in,
+unsigned char *rans_compress_O0_32x16_neon(const unsigned char *in,
                                            unsigned int in_size,
                                            unsigned char *out,
                                            unsigned int *out_size) {
@@ -593,7 +593,7 @@ static uint8x8_t idx2[256] = {
 };
 
 // SIMD: 650MB/s
-unsigned char *rans_uncompress_O0_32x16_neon(unsigned char *in,
+unsigned char *rans_uncompress_O0_32x16_neon(const unsigned char *in,
                                              unsigned int in_size,
                                              unsigned char *out,
                                              unsigned int out_sz) {
@@ -912,7 +912,7 @@ unsigned char *rans_uncompress_O0_32x16_neon(unsigned char *in,
 
 //-----------------------------------------------------------------------------
 
-unsigned char *rans_compress_O1_32x16_neon(unsigned char *in,
+unsigned char *rans_compress_O1_32x16_neon(const unsigned char *in,
                                            unsigned int in_size,
                                            unsigned char *out,
                                            unsigned int *out_size) {
@@ -1406,7 +1406,7 @@ static inline void transpose_and_copy(uint8_t *out, int iN[32],
     }
 }
 
-unsigned char *rans_uncompress_O1_32x16_neon(unsigned char *in,
+unsigned char *rans_uncompress_O1_32x16_neon(const unsigned char *in,
                                              unsigned int in_size,
                                              unsigned char *out,
                                              unsigned int out_sz) {
