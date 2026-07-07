@@ -135,7 +135,8 @@ typedef struct {
 } last_context_tok;
 
 typedef struct {
-    char *last_name;
+    const char *last_name;
+    int last_name_len;
     int last_ntok;
     last_context_tok *last; // [last_ntok]
 } last_context;
@@ -409,7 +410,7 @@ static int decode_token_int1(name_context *ctx, int ntok,
 // Maybe XOR with previous string as context?
 // This permits partial match to be encoded efficiently.
 static int encode_token_alpha(name_context *ctx, int ntok,
-                              char *str, int len) {
+                              const char *str, int len) {
     int id = (ntok<<4) | N_ALPHA;
 
     if (encode_token_type(ctx, ntok, N_ALPHA) < 0)  return -1;
@@ -587,7 +588,7 @@ void dump_trie(trie_t *t, int depth) {
 #endif
 
 static
-int search_trie(name_context *ctx, char *data, size_t len, int n, int *exact, int *is_fixed, int *fixed_len) {
+int search_trie(name_context *ctx, const char *data, size_t len, int n, int *exact, int *is_fixed, int *fixed_len) {
     size_t i;
     trie_t *t;
     int from = -1, p3 = -1;
@@ -598,7 +599,7 @@ int search_trie(name_context *ctx, char *data, size_t len, int n, int *exact, in
     // Horrid hack for the encoder only.
     // We optimise per known name format here.
     int prefix_len;
-    char *d = *data == '@' ? data+1 : data;
+    const char *d = *data == '@' ? data+1 : data;
     int l   = *data == '@' ? len-1  : len;
     int f = (*data == '>') ? 1 : 0;
     if (l > 70 && d[f+0] == 'm' && d[7] == '_' && d[f+14] == '_' && d[f+61] == '/') {
@@ -692,7 +693,7 @@ int search_trie(name_context *ctx, char *data, size_t len, int n, int *exact, in
  * Returns 0 on success;
  *        -1 on failure.
  */
-static int encode_name(name_context *ctx, char *name, int len, int mode) {
+static int encode_name(name_context *ctx, const char *name, int len, int mode) {
     int i, is_fixed, fixed_len;
 
     int exact;
@@ -703,14 +704,17 @@ static int encode_name(name_context *ctx, char *name, int len, int mode) {
     //cnum = cnum & (MAX_NAMES-1);
     //if (pnum == cnum) {pnum = cnum ? cnum-1 : 0;}
 #ifdef ENC_DEBUG
-    fprintf(stderr, "%d: pnum=%d (%d), exact=%d\n%s\n%s\n",
-            ctx->counter, pnum, cnum-pnum, exact, ctx->lc[pnum].last_name, name);
+    fprintf(stderr, "%d: pnum=%d (%d), exact=%d\n%.*s\n%.*s\n",
+            ctx->counter, pnum, cnum-pnum, exact,
+            ctx->lc[pnum].last_name_len, ctx->lc[pnum].last_name,
+            len, name);
 #endif
 
     // Return DUP or DIFF switch, plus the distance.
     if (exact && len == strlen(ctx->lc[pnum].last_name)) {
         encode_token_dup(ctx, cnum-pnum);
         ctx->lc[cnum].last_name = name;
+        ctx->lc[cnum].last_name_len = len;
         ctx->lc[cnum].last_ntok = ctx->lc[pnum].last_ntok;
         int nc = ctx->lc[cnum].last_ntok ? ctx->lc[cnum].last_ntok : MAX_TOKENS;
         ctx->lc[cnum].last = malloc(nc * sizeof(*ctx->lc[cnum].last));
@@ -1003,6 +1007,7 @@ static int encode_name(name_context *ctx, char *name, int len, int mode) {
     //printf("Encoded %.*s with %d tokens\n", len, name, ntok);
     
     ctx->lc[cnum].last_name = name;
+    ctx->lc[cnum].last_name_len = len;
     ctx->lc[cnum].last_ntok = ntok;
     last_context_tok *shrunk = realloc(ctx->lc[cnum].last,
                                        (ntok+1) * sizeof(*ctx->lc[cnum].last));
@@ -1040,9 +1045,10 @@ static int decode_name(name_context *ctx, char *name, int name_len) {
             return -1;
 
         if (strlen(ctx->lc[pnum].last_name) +1 >= name_len) return -1;
-        strcpy(name, ctx->lc[pnum].last_name);
+        memcpy(name, ctx->lc[pnum].last_name, name_len);
         // FIXME: optimise this
         ctx->lc[cnum].last_name = name;
+        ctx->lc[cnum].last_name_len = name_len;
         ctx->lc[cnum].last_ntok = ctx->lc[pnum].last_ntok;
 
         int nc = ctx->lc[cnum].last_ntok ? ctx->lc[cnum].last_ntok : MAX_TOKENS;
@@ -1188,6 +1194,7 @@ static int decode_name(name_context *ctx, char *name, int name_len) {
             ctx->lc[cnum].last[ntok].token_type = N_END;
 
             ctx->lc[cnum].last_name = name;
+            ctx->lc[cnum].last_name_len = name_len;
             ctx->lc[cnum].last_ntok = ntok;
 
             last_context_tok *shrunk
@@ -1497,7 +1504,6 @@ uint8_t *tok3_encode_names(const char *blk, int len, int level, int use_arith,
             return NULL;
         }
 
-        blk[i] = '\0';
         // try both 0 and 1 and pick best?
         if (encode_name(ctx, &blk[j], i-j, 1) < 0) {
             free_context(ctx);

@@ -1804,7 +1804,7 @@ unsigned char *rans_uncompress_to_4x16(const unsigned char *in,  unsigned int in
             sz += var_get_u32(in+sz, in_end, &c_meta_size);
             u_meta_size /= 2;
 
-            meta_free = meta = rans_dec_func(do_simd, 0)(in+sz, in_size-sz, NULL, u_meta_size);
+            meta = meta_free = rans_dec_func(do_simd, 0)(in+sz, in_size-sz, NULL, u_meta_size);
             if (!meta)
                 goto err;
         }
