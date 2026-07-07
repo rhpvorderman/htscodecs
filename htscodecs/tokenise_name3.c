@@ -1045,7 +1045,7 @@ static int decode_name(name_context *ctx, char *name, int name_len) {
             return -1;
 
         if (strlen(ctx->lc[pnum].last_name) +1 >= name_len) return -1;
-        memcpy(name, ctx->lc[pnum].last_name, name_len);
+        memmove(name, ctx->lc[pnum].last_name, name_len);
         // FIXME: optimise this
         ctx->lc[cnum].last_name = name;
         ctx->lc[cnum].last_name_len = name_len;
