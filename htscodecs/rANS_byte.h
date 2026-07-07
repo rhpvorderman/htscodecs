@@ -534,7 +534,7 @@ static inline void RansDecRenorm(RansState* r, const uint8_t** pptr)
     *r = x;
 }
 
-static inline void RansDecRenorm2(RansState* r1, RansState* r2, uint8_t** pptr) {
+static inline void RansDecRenorm2(RansState* r1, RansState* r2, const uint8_t** pptr) {
     RansDecRenorm(r1, pptr);
     RansDecRenorm(r2, pptr);
 }

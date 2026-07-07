@@ -438,7 +438,7 @@ static inline void RansDecRenorm(RansState* r, const uint8_t** pptr) {
 
 #else /* __x86_64 */
 
-static inline void RansDecRenorm(RansState* r, uint8_t** pptr)
+static inline void RansDecRenorm(RansState* r, const uint8_t** pptr)
 {
     // renormalize, branchless
     uint32_t x = *r;
