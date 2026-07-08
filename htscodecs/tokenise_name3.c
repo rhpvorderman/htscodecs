@@ -1023,7 +1023,7 @@ static int encode_name(name_context *ctx, const char *name, int len, int mode) {
 //-----------------------------------------------------------------------------
 // Name decoder
 
-static int decode_name(name_context *ctx, char *name, int name_len) {
+static int decode_name(name_context *ctx, char *name, int name_buffer_size) {
     int t0 = decode_token_type(ctx, 0);
     uint32_t dist;
     int pnum, cnum = ctx->counter++;
@@ -1043,12 +1043,12 @@ static int decode_name(name_context *ctx, char *name, int name_len) {
     if (t0 == N_DUP) {
         if (pnum == cnum)
             return -1;
-
-        if (strlen(ctx->lc[pnum].last_name) +1 >= name_len) return -1;
-        memmove(name, ctx->lc[pnum].last_name, name_len);
+        int name_length = ctx->lc[pnum].last_name_len;
+        if (ctx->lc[pnum].last_name_len +1 >= name_buffer_size) return -1;
+        memcpy(name, ctx->lc[pnum].last_name, name_length);
         // FIXME: optimise this
         ctx->lc[cnum].last_name = name;
-        ctx->lc[cnum].last_name_len = name_len;
+        ctx->lc[cnum].last_name_len = name_length;
         ctx->lc[cnum].last_ntok = ctx->lc[pnum].last_ntok;
 
         int nc = ctx->lc[cnum].last_ntok ? ctx->lc[cnum].last_ntok : MAX_TOKENS;
@@ -1058,7 +1058,7 @@ static int decode_name(name_context *ctx, char *name, int name_len) {
         memcpy(ctx->lc[cnum].last, ctx->lc[pnum].last,
                ctx->lc[cnum].last_ntok * sizeof(*ctx->lc[cnum].last));
 
-        return strlen(name)+1;
+        return name_length;
     }
 
     *name = 0;
@@ -1077,7 +1077,7 @@ static int decode_name(name_context *ctx, char *name, int name_len) {
 
         switch (tok) {
         case N_CHAR:
-            if (len+1 >= name_len) return -1;
+            if (len+1 >= name_buffer_size) return -1;
             if (decode_token_char(ctx, ntok, &name[len]) < 0) return -1;
             //fprintf(stderr, "Tok %d CHAR %c\n", ntok, name[len]);
             ctx->lc[cnum].last[ntok].token_type = N_CHAR;
@@ -1085,7 +1085,7 @@ static int decode_name(name_context *ctx, char *name, int name_len) {
             break;
 
         case N_ALPHA:
-            if ((len2 = decode_token_alpha(ctx, ntok, &name[len], name_len - len)) < 0)
+            if ((len2 = decode_token_alpha(ctx, ntok, &name[len], name_buffer_size - len)) < 0)
                 return -1;
             //fprintf(stderr, "Tok %d ALPHA %.*s\n", ntok, len2, &name[len]);
             ctx->lc[cnum].last[ntok].token_type = N_ALPHA;
@@ -1097,7 +1097,7 @@ static int decode_name(name_context *ctx, char *name, int name_len) {
         case N_DIGITS0: // [0-9]*
             if (decode_token_int1(ctx, ntok, N_DZLEN, &vl) < 0) return -1;
             if (decode_token_int(ctx, ntok, N_DIGITS0, &v) < 0) return -1;
-            if (len+20+vl >= name_len) return -1;
+            if (len+20+vl >= name_buffer_size) return -1;
             len += append_uint32_fixed(&name[len], v, vl);
             //fprintf(stderr, "Tok %d DIGITS0 %0*d\n", ntok, vl, v);
             ctx->lc[cnum].last[ntok].token_type = N_DIGITS0;
@@ -1109,7 +1109,7 @@ static int decode_name(name_context *ctx, char *name, int name_len) {
             if (ntok >= ctx->lc[pnum].last_ntok) return -1;
             if (decode_token_int1(ctx, ntok, N_DDELTA0, &v) < 0) return -1;
             v += ctx->lc[pnum].last[ntok].token_int;
-            if (len+ctx->lc[pnum].last[ntok].token_str+1 >= name_len) return -1;
+            if (len+ctx->lc[pnum].last[ntok].token_str+1 >= name_buffer_size) return -1;
             len += append_uint32_fixed(&name[len], v, ctx->lc[pnum].last[ntok].token_str);
             //fprintf(stderr, "Tok %d DELTA0 %0*d\n", ntok, ctx->lc[pnum].last[ntok].token_str, v);
             ctx->lc[cnum].last[ntok].token_type = N_DIGITS0;
@@ -1119,7 +1119,7 @@ static int decode_name(name_context *ctx, char *name, int name_len) {
 
         case N_DIGITS: // [1-9][0-9]*
             if (decode_token_int(ctx, ntok, N_DIGITS, &v) < 0) return -1;
-            if (len+20 >= name_len) return -1;
+            if (len+20 >= name_buffer_size) return -1;
             len += append_uint32_var(&name[len], v);
             //fprintf(stderr, "Tok %d DIGITS %d\n", ntok, v);
             ctx->lc[cnum].last[ntok].token_type = N_DIGITS;
@@ -1130,7 +1130,7 @@ static int decode_name(name_context *ctx, char *name, int name_len) {
             if (ntok >= ctx->lc[pnum].last_ntok) return -1;
             if (decode_token_int1(ctx, ntok, N_DDELTA, &v) < 0) return -1;
             v += ctx->lc[pnum].last[ntok].token_int;
-            if (len+20 >= name_len) return -1;
+            if (len+20 >= name_buffer_size) return -1;
             len += append_uint32_var(&name[len], v);
             //fprintf(stderr, "Tok %d DELTA %d\n", ntok, v);
             ctx->lc[cnum].last[ntok].token_type = N_DIGITS;
@@ -1145,7 +1145,7 @@ static int decode_name(name_context *ctx, char *name, int name_len) {
             if (ntok >= ctx->lc[pnum].last_ntok) return -1;
             switch (ctx->lc[pnum].last[ntok].token_type) {
             case N_CHAR:
-                if (len+1 >= name_len) return -1;
+                if (len+1 >= name_buffer_size) return -1;
                 name[len++] = ctx->lc[pnum].last[ntok].token_int;
                 //fprintf(stderr, "Tok %d MATCH CHAR %c\n", ntok, ctx->lc[pnum].last[ntok].token_int);
                 ctx->lc[cnum].last[ntok].token_type = N_CHAR;
@@ -1154,7 +1154,7 @@ static int decode_name(name_context *ctx, char *name, int name_len) {
 
             case N_ALPHA:
                 if (ctx->lc[pnum].last[ntok].token_int < 0 ||
-                    len+ctx->lc[pnum].last[ntok].token_int >= name_len) return -1;
+                    len+ctx->lc[pnum].last[ntok].token_int >= name_buffer_size) return -1;
                 memcpy(&name[len],
                        &ctx->lc[pnum].last_name[ctx->lc[pnum].last[ntok].token_str],
                        ctx->lc[pnum].last[ntok].token_int);
@@ -1166,7 +1166,7 @@ static int decode_name(name_context *ctx, char *name, int name_len) {
                 break;
 
             case N_DIGITS:
-                if (len+20 >= name_len) return -1;
+                if (len+20 >= name_buffer_size) return -1;
                 len += append_uint32_var(&name[len], ctx->lc[pnum].last[ntok].token_int);
                 //fprintf(stderr, "Tok %d MATCH DIGITS %d\n", ntok, ctx->lc[pnum].last[ntok].token_int);
                 ctx->lc[cnum].last[ntok].token_type = N_DIGITS;
@@ -1174,7 +1174,7 @@ static int decode_name(name_context *ctx, char *name, int name_len) {
                 break;
 
             case N_DIGITS0:
-                if (len+ctx->lc[pnum].last[ntok].token_str >= name_len) return -1;
+                if (len+ctx->lc[pnum].last[ntok].token_str >= name_buffer_size) return -1;
                 len += append_uint32_fixed(&name[len], ctx->lc[pnum].last[ntok].token_int, ctx->lc[pnum].last[ntok].token_str);
                 //fprintf(stderr, "Tok %d MATCH DIGITS %0*d\n", ntok, ctx->lc[pnum].last[ntok].token_str, ctx->lc[pnum].last[ntok].token_int);
                 ctx->lc[cnum].last[ntok].token_type = N_DIGITS0;
@@ -1189,12 +1189,12 @@ static int decode_name(name_context *ctx, char *name, int name_len) {
 
         default: // an elided N_END
         case N_END:
-            if (len+1 >= name_len) return -1;
+            if (len+1 >= name_buffer_size) return -1;
             name[len++] = 0;
             ctx->lc[cnum].last[ntok].token_type = N_END;
 
             ctx->lc[cnum].last_name = name;
-            ctx->lc[cnum].last_name_len = name_len;
+            ctx->lc[cnum].last_name_len = len;
             ctx->lc[cnum].last_ntok = ntok;
 
             last_context_tok *shrunk
